@@ -1,0 +1,15 @@
+1,2d0
+< #!/usr/bin/env lua
+< 
+1208c1206
+< if arg and arg[0]:find("markdown%.lua$") then
+---
+> --[[if arg and arg[0]:find("markdown%.lua$") then
+1210,1212c1208,1210
+< else
+<    return markdown
+< end
+---
+> else]]--
+> return markdown
+> --end

@@ -1,0 +1,65 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1762596750,
+        "narHash": "sha256-rXXuz51Bq7DHBlfIjN7jO8Bu3du5TV+3DSADBX7/9YQ=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b6a8526db03f735b89dd5ff348f53f752e7ddc8e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nixpkgs": "nixpkgs",
+        "tree-sitter-luau-src": "tree-sitter-luau-src",
+        "tree-sitter-pkg": "tree-sitter-pkg"
+      }
+    },
+    "tree-sitter-luau-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1742061912,
+        "narHash": "sha256-a+TJFLt77G4UyvcLz5Nsc6gvsgCTwmpZDNyfN8YUJDc=",
+        "owner": "polychromatist",
+        "repo": "tree-sitter-luau",
+        "rev": "ec187cafba510cddac265329ca7831ec6f3b9955",
+        "type": "github"
+      },
+      "original": {
+        "owner": "polychromatist",
+        "repo": "tree-sitter-luau",
+        "type": "github"
+      }
+    },
+    "tree-sitter-pkg": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1764087824,
+        "narHash": "sha256-95HcT1WOIVjW8u9uB+QSvMUIWvOnFgeT9eQoyk6hR18=",
+        "owner": "tree-sitter",
+        "repo": "tree-sitter",
+        "rev": "14b4708018ee7fe3236e1d965ba589530a3374b6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tree-sitter",
+        "repo": "tree-sitter",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

@@ -1,0 +1,9 @@
+[submodule "third-party/lua-template"]
+	path = src/third-party/lua-template
+	url = git@github.com:dannote/lua-template.git
+[submodule "third-party/markdown"]
+	path = src/third-party/lua-markdown
+	url = git@github.com:mpeterv/markdown.git
+[submodule "third-party/lua-htmlparser"]
+	path = src/third-party/lua-htmlparser
+	url = git@github.com:msva/lua-htmlparser.git

@@ -1,0 +1,6 @@
+29,30c29,30
+< local ElementNode = require"htmlparser.ElementNode"
+< local voidelements = require"htmlparser.voidelements"
+---
+> local ElementNode = require"./lua-htmlparser/src/htmlparser/ElementNode"
+> local voidelements = require"./lua-htmlparser/src/htmlparser/voidelements"

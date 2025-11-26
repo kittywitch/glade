@@ -1,0 +1,22 @@
+0a1,3
+> local luau = require("@lune/luau")
+> local stdio = require("@lune/stdio")
+> 
+15c18
+<   local callback = callback or print
+---
+>   local callback = callback or stdio.write
+18a22
+>       env["escape"] = template.escape
+44c48
+<     "return function(_)" .. 
+---
+>     "return function(_)" ..
+46c50
+<         "_(require('template').escape(...))" ..
+---
+>         "_(escape(...))" ..
+68c72
+<   local f, err = loadstring(template.parse(...))
+---
+>   local f, err = luau.load(template.parse(...))

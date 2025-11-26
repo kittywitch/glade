@@ -1,0 +1,6 @@
+.direnv/
+result/
+content/
+/src/third-party/*.lua
+!/src/third-party/init.luau
+/.treesitter-config.json
