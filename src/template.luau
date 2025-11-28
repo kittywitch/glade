@@ -1,10 +1,11 @@
 local tp_template = require("@project/third-party/template");
 local fs = require("@lune/fs")
 local fsx = require("@project/fsx")
+local tablex = require("@project/tablex")
 
 local template = {}
 
-function template.handle_all(config: { [any]: any }): ()
+function template.handle_all(config: tablex.TableWildcard): tablex.TableWildcard
   local template_files: { string } = fsx.get_all_of_type("tpl", "./templates")
   local templates = {}
   local context = {
@@ -22,7 +23,7 @@ function template.handle_all(config: { [any]: any }): ()
   return templates
 end
 
-function template.parse(path: string, context: { [any]: any }): (...any) -> ...any
+function template.parse(path: string, context: tablex.TableWildcard): (...any) -> ...any
   local file_content = fs.readFile(path)
   local tpl = tp_template.parse(file_content, false)
   print(tpl)

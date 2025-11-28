@@ -78,6 +78,8 @@
           '';
           nativeBuildInputs = with pkgs; [
             gnumake
+            grass-sass
+            pandoc
             stylua
             luau-lsp
             lune

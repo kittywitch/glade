@@ -1,12 +1,9 @@
--- stdlib
 local fs = require("@lune/fs")
 local regex = require("@lune/regex")
 local serde = require("@lune/serde")
 local dateTime = require("@lune/datetime")
--- third party
-local markdown = require("@project/third-party/markdown");
+local process = require("@lune/process")
 local htmlparser = require("@project/third-party/htmlparser");
--- first party
 local tablex = require("@project/tablex");
 local fsx = require("@project/fsx");
 
@@ -14,9 +11,8 @@ local post = {}
 
 type Post = {
   frontmatter: {[any]: any},
-  markdown: string | nil,
+  body: string | nil,
   html: string | nil,
-  headings: HeadingList | nil,
 }
 
 
@@ -39,10 +35,10 @@ function post.parse_metadata(path: string, content: string): Post?
       local frontmatter_capture: any = frontmatter_captures:get(1)
       local frontmatter = serde.decode(frontmatter_type, frontmatter_capture.text)
 
-      local markdown_capture = frontmatter_captures:get(2)
-      local markdown = nil
-      if markdown_capture ~= nil then
-        markdown = markdown_capture.text
+      local body_capture = frontmatter_captures:get(2)
+      local body = nil
+      if body_capture ~= nil then
+        body = body_capture.text
       end
 
       --[[
@@ -110,13 +106,37 @@ function post.parse_metadata(path: string, content: string): Post?
       end
       post = {
         frontmatter = frontmatter,
-        markdown = markdown,
-        headings = nil,
+        body = body,
         html = nil,
       }
     end
   end
   return post
+end
+
+function post.handle_pandoc(input: string, from: string, to: string, toc: boolean): string?
+  local pandoc_args = {
+    "-s",
+    "-f",
+    from,
+    "-t",
+    to,
+    "--table-of-contents="..tostring(toc),
+    "--template=pandoc-template.html",
+  };
+  local exec_opts: process.ExecOptions = {
+    cwd = process.env["REPO_ROOT"] .. "/src",
+    stdio = {
+      stdin = input,
+    },
+  }
+  local pandoc_result = process.exec("pandoc", pandoc_args, exec_opts)
+  print(pandoc_result)
+  if pandoc_result.ok then
+    return pandoc_result.stdout
+  else
+    return nil
+  end
 end
 
 type Heading = {
@@ -128,7 +148,9 @@ type HeadingList = {
   [string]: Heading
 }
 
-function select_headings(elem): HeadingList
+
+-- TODO: remove
+function _select_headings(elem): HeadingList
   local headings = {}
   for i=1,6 do
     local level = elem("h"..tostring(i))
@@ -166,24 +188,28 @@ function select_headings(elem): HeadingList
   return headings_tree
 end
 
-function post.parse(path: string): Post?
+function post.parse(format: string, path: string): Post?
   local file_content = fs.readFile(path)
   local parsed_post = post.parse_metadata(path, file_content)
   if parsed_post ~= nil then
-    parsed_post.html = markdown(parsed_post.markdown)
+    if parsed_post.body ~= nil then
+      parsed_post.html = post.handle_pandoc(parsed_post.body, format, "html", true)
+      --parsed_post.html = body(parsed_post.markdown)
+    end
     local root: any = htmlparser.parse(parsed_post.html)
-    local headings = select_headings(root)
-    parsed_post.headings = headings
+    -- TODO: remove
+    --[[local headings = select_headings(root)
+    parsed_post.headings = headings]]--
   end
   return parsed_post
 end
 
 function post.handle_all()
-  local markdown_files: {string} = fsx.get_all_of_type("md", "./content")
+  local body_files: {string} = fsx.get_all_of_type("md", "./content")
   local posts = {}
 
   print("Starting post handler")
-  for i: number, file: string in markdown_files do
+  for i: number, file: string in body_files do
     print("File " .. i .. ": " .. file)
     local namespace = string.split(file, "/")
     -- remove . and content
@@ -202,7 +228,7 @@ function post.handle_all()
       end
       purview = purview[section]
     end
-    local parsed_post = post.parse(file)
+    local parsed_post = post.parse("markdown", file)
     if parsed_post ~= nil then
       table.insert(purview, parsed_post)
     else
