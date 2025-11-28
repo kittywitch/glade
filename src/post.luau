@@ -114,7 +114,7 @@ function post.parse_metadata(path: string, content: string): Post?
   return post
 end
 
-function post.handle_pandoc(input: string, from: string, to: string, toc: boolean): string?
+function post.handle_pandoc(input: string, from: string, to: string, toc: boolean, wrap: boolean): string?
   local pandoc_args = {
     "-s",
     "-f",
@@ -124,6 +124,9 @@ function post.handle_pandoc(input: string, from: string, to: string, toc: boolea
     "--table-of-contents="..tostring(toc),
     "--template=pandoc-template.html",
   };
+  if not wrap then
+    table.insert(pandoc_args, "--wrap=none")
+  end
   local exec_opts: process.ExecOptions = {
     cwd = process.env["REPO_ROOT"] .. "/src",
     stdio = {
@@ -131,7 +134,7 @@ function post.handle_pandoc(input: string, from: string, to: string, toc: boolea
     },
   }
   local pandoc_result = process.exec("pandoc", pandoc_args, exec_opts)
-  print(pandoc_result)
+  --print(pandoc_result)
   if pandoc_result.ok then
     return pandoc_result.stdout
   else

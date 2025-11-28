@@ -133,4 +133,20 @@ function fsx.produce_file(path: string, content: string): ()
   fs.writeFile(path, content)
 end
 
+function fsx.find_closest(needle: string, haystack: string): string?
+  local basedir = fsx.basedir(haystack)
+  if basedir == "./" or basedir == "." then
+    return nil
+  end
+  local location = basedir .. "/" .. needle
+  if fs.isFile(location) then
+    print("Needle found at " .. location .. "!")
+    return location
+  else
+    print("Recursing for " .. needle .. " in " .. basedir)
+    fsx.find_closest(needle, basedir)
+  end
+  return nil
+end
+
 return fsx

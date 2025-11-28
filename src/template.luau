@@ -15,7 +15,7 @@ function template.handle_all(config: tablex.TableWildcard): tablex.TableWildcard
   print("Starting template handler")
   for i: number, file in template_files do
     print("File " .. i .. ": " .. file)
-    local _template = template.parse(file, context)
+    local _template = template.parse(file)
     table.insert(templates, template)
   end
   print("Template handler job finished")
@@ -23,10 +23,10 @@ function template.handle_all(config: tablex.TableWildcard): tablex.TableWildcard
   return templates
 end
 
-function template.parse(path: string, context: tablex.TableWildcard): (...any) -> ...any
+function template.parse(path: string): (...any) -> ...any
   local file_content = fs.readFile(path)
   local tpl = tp_template.parse(file_content, false)
-  print(tpl)
+  --print(tpl)
   local templated = tp_template.compile(file_content)
   --[[
   print("Template context:")
