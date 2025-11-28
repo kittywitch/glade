@@ -194,6 +194,10 @@ end
 -- continuation of the markdown parsing task. If templating is required,
 -- add the continuation of the templating task to the graph. Iterate over the graph
 -- while consuming the filesystem, piece by piece to resolve dependencies.
+--
+-- For any filesystem entry task that succeeds, append immediately after that task
+-- (at the front of the queue), more tasks for the actual dependencies and
+-- processing / chains required for the result.
 ]]--
 function main.call()
   local config = load_site_config()
