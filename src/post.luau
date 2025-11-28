@@ -196,7 +196,7 @@ function post.parse(format: string, path: string): Post?
   local parsed_post = post.parse_metadata(path, file_content)
   if parsed_post ~= nil then
     if parsed_post.body ~= nil then
-      parsed_post.html = post.handle_pandoc(parsed_post.body, format, "html", true)
+      parsed_post.html = post.handle_pandoc(parsed_post.body, format, "html", true, false)
       --parsed_post.html = body(parsed_post.markdown)
     end
     local root: any = htmlparser.parse(parsed_post.html)
