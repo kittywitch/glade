@@ -3,6 +3,8 @@
 ## Spring cleaning
 
 - [ ] Replace impromptu wildcard table type usage with tablex.TableWildcard
+- [ ] Produce a functionx.FunctionWildcard equivalent type
+- [ ] Remove lua-markdown and lua-htmlparser now they are no longer needed
 
 ## SSG Core
 
