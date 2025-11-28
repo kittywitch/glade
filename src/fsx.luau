@@ -33,39 +33,25 @@ export type FiletreeConfig = {
   filters: { FiletreeFilter },
 }
 
---[[
--- the use of _ suffixes here is specifically for the purpose of avoiding
--- any potential collisions with files called "metadata" or "path". i don't
--- really know why you would name them that, but there we go, y'know?
---
--- this applies to both FileMetadata and FiletreeOutput.
---
--- by the way, I tried using table type combination with & over a "FileCommon"
--- where it contained _metadata and _path and *it does work but only for
--- FileMetadata for FiletreeOutput, the only way providing the _ prefixed keys
--- works is by providing them before the [string] in the same table definition
--- so that's kind of sad, would've been cute to combine both definitions that
--- way.
-]]--
+export type FileCommon = {
+  path: string,
+  metadata: fs.Metadata,
+}
 
 export type FileMetadata = {
   name: string,
   filetype: string,
   basename: string,
-  metadata: fs.Metadata,
-  path: string,
-}
+} & FileCommon
 
 export type FiletreeOutput = {
-  metadata: fs.Metadata,
-  path: string,
   dirs: {
     [string]: FiletreeOutput
   },
   files: {
     [string]: FileMetadata
   },
-}
+} & FileCommon
 
 function fsx.build_filetree(directory: string, config: FiletreeConfig): FiletreeOutput
   local tree: FiletreeOutput = {
