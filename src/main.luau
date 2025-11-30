@@ -259,23 +259,27 @@ local store = {
   templates =  template_store,
 }
 
+type DependencyCommon = {
+  kind: string?
+}
+
 type ParsedPost = {
   post_file: fsx.FileMetadata,
   post: post.Post,
-}
+} & DependencyCommon
 
 type TemplateCompileRequest = {
   template_file: fsx.FileMetadata,
-}
+} & DependencyCommon
 
 type CompiledTemplate = {
   template_file: fsx.FileMetadata,
   template: (...any) -> ...any
-}
+} & DependencyCommon
 
 type PostDependencyChain = ParsedPost | TemplateCompileRequest | CompiledTemplate
 
-type Dependency = fsx.FileMetadata | PostDependencyChain
+type Dependency = PostDependencyChain
 
 type DependencyMap = {
   Dependency
@@ -359,9 +363,10 @@ function find_template_for_post(post: post.Post, post_type: string): string?
   return nil
 end
 
-function mapper.handle_template_relationship(ft: fsx.FiletreeOutput, rootft: fsx.FiletreeOutput, post_file: fsx.FileMetadata, metadata_file: fsx.FileMetadata)
+function mapper.handle_template_relationship(ft: fsx.FiletreeOutput, rootft: fsx.FiletreeOutput, post_file: Dependency, metadata_file: fsx.FileMetadata)
   local metadata_obj: TemplateCompileRequest = {
-    template_file = metadata_file
+    template_file = metadata_file,
+    kind = "compile_template",
   }
   mapper.add_dependency_file(post_file, metadata_obj)
 end
@@ -384,6 +389,7 @@ function mapper.handle_post_relationship(ft: fsx.FiletreeOutput, rootft: fsx.Fil
     local parsed_post: ParsedPost = {
       post_file = post_file,
       post = post_obj,
+      kind = "parsed_post",
     }
     mapper.add_dependency_root_file(parsed_post)
     local relevant_template_path = find_template_for_post(post_obj, post_type)
@@ -391,7 +397,7 @@ function mapper.handle_post_relationship(ft: fsx.FiletreeOutput, rootft: fsx.Fil
       relevant_template_path = "templates/" .. relevant_template_path
       local metadata_obj = fsx.search_filetree(rootft, relevant_template_path)
       if metadata_obj ~= nil then
-        mapper.handle_template_relationship(ft, rootft, post_file, metadata_obj)
+        mapper.handle_template_relationship(ft, rootft, parsed_post, metadata_obj)
       end
     end
   end
@@ -452,8 +458,8 @@ function main.call()
   mapper.build_dependency_graph(filetree, filetree)
 
   print(dependency_graph)
-  print(tablex.strip_values(dependency_map))
-  
+  --print(tablex.strip_values(dependency_map))
+  print(dependency_map)
   --local _posts = post.handle_all()
   --local _templates = template.handle_all(config)
   --[[local tree_filter = build_filter()
