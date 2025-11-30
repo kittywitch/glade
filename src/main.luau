@@ -444,6 +444,21 @@ end
 -- (at the front of the queue), more tasks for the actual dependencies and
 -- processing / chains required for the result.
 ]]--
+
+--[[
+-- TODO: The dependency tree should be prepopulated with placeholders where it
+-- concerns things that require propagated production output, or at least there
+-- should be a way to map the operations that need to happen without executing
+-- all of the subsequently required actions in so as far as it does not require
+-- their completion to understand the dependency graph fully.
+--
+-- MD file -> parse post -> get template from viscinity -> compile template
+-- -> apply template -> site produced
+--
+-- SASS file -> compile SASS -> site produced
+--
+-- image file -> image processing / optimization -> site produced
+]]--
 function main.call()
   local config = load_site_config()
 
