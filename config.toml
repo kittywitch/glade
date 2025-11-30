@@ -1,3 +1,4 @@
 base_url = "https://dork.dev"
 site_title = "dork.dev"
 result_dir = "result"
+default_template = "post.tpl"

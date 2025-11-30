@@ -15,6 +15,7 @@ function load_site_config()
   return config
 end
 
+local site_config = load_site_config()
 --[[
 -- this filter has a build stage because it allows for precompilation of the
 -- regular expressions a single time by using it within scope. i think it's
@@ -50,6 +51,7 @@ function build_filter(): (string) -> boolean
     return filetree_filter
 end
 
+--[[
 local function result_path_modifier(config: tablex.TableWildcard, path: string)
   local result = config.result_dir .. "/"
   local moved_dir = string.gsub(path, "content/", config.result_dir .. "/")
@@ -151,13 +153,13 @@ function file_sink(result: SourceResult)
       fsx.produce_file(result.path, output)
     end
 end
-
+]]--
 --[[
 -- A chain is a source, a process and a sink.
 -- You can have only a source, and a sink into some kind of global, like templates
 -- however, in this case a chain is for doing file IO with a pipeline process.
 ]]--
-function build_markdown_chain(markdown_source: any)
+--[[function build_markdown_chain(markdown_source: any)
   local function markdown_chain(ft: fsx.FileMetadata)
     local source = markdown_source(ft)
     if source == nil then
@@ -170,8 +172,8 @@ function build_markdown_chain(markdown_source: any)
     file_sink(process)
   end
   return markdown_chain
-end
-
+end]]--
+--[[
 function apply_recipes(ft: fsx.FiletreeOutput, recipes: { [string]: (...any) -> ...any })
   print("File location" .. ft.path)
   for subpath, entry in ft.files do
@@ -185,7 +187,244 @@ function apply_recipes(ft: fsx.FiletreeOutput, recipes: { [string]: (...any) -> 
       apply_recipes(entry, recipes)
   end
 
+end]]--
+
+type DAGEdge = {
+  from: number,
+  to: number,
+} | RootEdge
+
+type RootEdge = {
+  to: number,
+}
+
+type DAG = {
+  edges: { DAGEdge },
+  vertices: { number },
+}
+
+local dag = {}
+
+function dag.create(): DAG
+  local obj: DAG = {
+    edges = {},
+    vertices = {},
+  }
+  return obj
 end
+
+function dag.append_vertex(dag: DAG): number
+  local idx = #dag.vertices+1
+  table.insert(dag.vertices, idx)
+  return idx
+end
+
+function dag.append_edge(dag: DAG, edge: DAGEdge)
+  table.insert(dag.edges, edge)
+end
+
+function dag.create_root_edge(to: number)
+  local edge: RootEdge = {
+    to = to;
+  }
+  return edge
+end
+
+
+function dag.create_edge(from: number, to: number)
+  local edge: DAGEdge = {
+    from = from;
+    to = to;
+  }
+  return edge
+end
+
+function dag.form_root_edge(obj: DAG, to: number)
+  local edge = dag.create_root_edge(to)
+  dag.append_edge(obj, edge)
+end
+
+function dag.form_edge(obj: DAG, from: number, to: number)
+  local edge = dag.create_edge(from, to)
+  dag.append_edge(obj, edge)
+end
+
+local mapper = {}
+
+local posts_store: { [string]: post.Post } = {}
+local template_store: { [string]: (...any) -> ...any } = {}
+
+local store = {
+  posts = posts_store,
+  templates =  template_store,
+}
+
+type ParsedPost = {
+  post_file: fsx.FileMetadata,
+  post: post.Post,
+}
+
+type TemplateCompileRequest = {
+  template_file: fsx.FileMetadata,
+}
+
+type CompiledTemplate = {
+  template_file: fsx.FileMetadata,
+  template: (...any) -> ...any
+}
+
+type PostDependencyChain = ParsedPost | TemplateCompileRequest | CompiledTemplate
+
+type Dependency = fsx.FileMetadata | PostDependencyChain
+
+type DependencyMap = {
+  Dependency
+}
+
+type PipelineElement = {
+  queued_function: (...any) -> ...any,
+  parameters: { any },
+}
+
+local dependency_graph: DAG = dag.create()
+local dependency_map: DependencyMap = {
+}
+
+function mapper.add_dependency_root_file(to: Dependency)
+  local to_idx = mapper.find_or_add(to)
+  if to_idx ~= nil then
+    dag.form_root_edge(dependency_graph, to_idx)
+  end
+
+end
+
+function mapper.add_file(file: Dependency): number
+  local idx = dag.append_vertex(dependency_graph)
+  table.insert(dependency_map, idx, file)
+  return idx
+end
+
+function mapper.find_or_add(file: Dependency): number
+  local idx = table.find(dependency_map, file)
+  if idx ~= nil then
+    return idx
+  else
+    return mapper.add_file(file)
+  end
+end
+
+function mapper.add_dependency_file(from: Dependency, to: Dependency)
+  local from_idx = mapper.find_or_add(from)
+  local to_idx = mapper.find_or_add(to)
+  if from_idx ~= nil and to_idx ~= nil then
+    mapper.add_dependency_idx(from_idx, to_idx)
+  end
+end
+
+function mapper.add_dependency_idx(from_idx: number, to_idx: number)
+  dag.form_edge(dependency_graph, from_idx, to_idx)
+end
+
+type DependencyRule = {
+  filetype: string,
+}
+
+
+function parse_post(format: string, path: string): post.Post?
+  local post_obj = post.parse(format, path)
+  if post_obj ~= nil then
+    store.posts[path] = post_obj
+  end
+  return post_obj
+end
+
+function find_template_for_post(post: post.Post, post_type: string): string?
+  if post.frontmatter ~= nil and post.frontmatter.template ~= nil then
+    return post.frontmatter.template
+  else
+    local page_config_location = fsx.find_closest("_index.md", post.path)
+    if page_config_location ~= nil then
+      local page_config_obj = parse_post(post_type, page_config_location)
+      if page_config_obj ~= nil
+          and page_config_obj.frontmatter ~= nil
+          and page_config_obj.frontmatter.template ~= nil then
+        return page_config_obj.frontmatter.template
+      end
+    end
+
+    if site_config.default_template ~= nil then
+      return site_config.default_template
+    end
+  end
+  return nil
+end
+
+function mapper.handle_template_relationship(ft: fsx.FiletreeOutput, rootft: fsx.FiletreeOutput, post_file: fsx.FileMetadata, metadata_file: fsx.FileMetadata)
+  local metadata_obj: TemplateCompileRequest = {
+    template_file = metadata_file
+  }
+  mapper.add_dependency_file(post_file, metadata_obj)
+end
+
+function compile_template(file: fsx.FileMetadata): (...any) -> ...any
+  return template.parse(file.path)
+end
+
+function apply_template(template: (...any) -> ...any, post: post.Post, context: any): string
+  local new_context = {
+    post = post,
+    context = context,
+  }
+  return template(new_context)
+end
+
+function mapper.handle_post_relationship(ft: fsx.FiletreeOutput, rootft: fsx.FiletreeOutput, post_file: fsx.FileMetadata, post_type: string)
+  local post_obj = parse_post(post_type, post_file.path)
+  if post_obj ~= nil then
+    local parsed_post: ParsedPost = {
+      post_file = post_file,
+      post = post_obj,
+    }
+    mapper.add_dependency_root_file(parsed_post)
+    local relevant_template_path = find_template_for_post(post_obj, post_type)
+    if relevant_template_path ~= nil then
+      relevant_template_path = "templates/" .. relevant_template_path
+      local metadata_obj = fsx.search_filetree(rootft, relevant_template_path)
+      if metadata_obj ~= nil then
+        mapper.handle_template_relationship(ft, rootft, post_file, metadata_obj)
+      end
+    end
+  end
+end
+
+function handle_markdown(ft: fsx.FiletreeOutput, rootft: fsx.FiletreeOutput, post_file: fsx.FileMetadata)
+  if post_file.filetype == "md" then
+    mapper.handle_post_relationship(ft, rootft, post_file, "markdown_mmd")
+  end
+end
+
+type Recipes = {
+  [string]: (...any) -> ...any
+}
+
+local recipes: Recipes = {
+  ["handle_markdown"] = handle_markdown,
+}
+
+function mapper.build_dependency_graph(ft: fsx.FiletreeOutput, root: fsx.FiletreeOutput)
+  print("File location" .. ft.path)
+  for subpath, entry in ft.files do
+    for rn, recipe in recipes do
+      print("Calling recipe " .. rn .. " on " .. entry.path)
+      recipe(ft, root, entry)
+    end
+  end
+  for subpath, entry in ft.dirs do
+      print("Recursive subcall of build_dependency_graph on " .. subpath)
+      mapper.build_dependency_graph(entry, root)
+  end
+end
+
 
 --[[
 -- TODO: Move to DAG for the actual way dependencies are handled
@@ -201,9 +440,23 @@ end
 ]]--
 function main.call()
   local config = load_site_config()
+
+  local tree_filter = build_filter()
+  local filetree_config: fsx.FiletreeConfig = {
+    filters = {
+      tree_filter
+    },
+  }
+
+  local filetree: fsx.FiletreeOutput = fsx.build_filetree("./", filetree_config)
+  mapper.build_dependency_graph(filetree, filetree)
+
+  print(dependency_graph)
+  print(tablex.strip_values(dependency_map))
+  
   --local _posts = post.handle_all()
   --local _templates = template.handle_all(config)
-  local tree_filter = build_filter()
+  --[[local tree_filter = build_filter()
   local filetree_config: fsx.FiletreeConfig = {
     filters = {
       tree_filter
@@ -222,7 +475,7 @@ function main.call()
   local filetree: fsx.FiletreeOutput = fsx.build_filetree("./", filetree_config)
   apply_recipes(filetree, recipes)
   --print(templates)
-  --print(markdown_contexts)
+  --print(markdown_contexts)]]--
 end
 
 return main

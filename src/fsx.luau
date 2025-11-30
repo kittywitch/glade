@@ -53,6 +53,21 @@ export type FiletreeOutput = {
   },
 } & FileCommon
 
+function fsx.search_filetree(ft: FiletreeOutput, path: string): FileMetadata?
+  local split_path = string.split(path, "/")
+  local filename = table.remove(split_path, #split_path)
+  local context = nil
+  for i, subpath in split_path do
+    print(subpath)
+    context = ft.dirs[subpath]
+  end
+  if filename ~= nil then
+    return context.files[filename]
+  else
+    return nil
+  end
+end
+
 function fsx.build_filetree(directory: string, config: FiletreeConfig): FiletreeOutput
   local tree: FiletreeOutput = {
     path = directory,

@@ -9,10 +9,11 @@ local fsx = require("@project/fsx");
 
 local post = {}
 
-type Post = {
+export type Post = {
   frontmatter: {[any]: any},
   body: string | nil,
   html: string | nil,
+  path: string,
 }
 
 
@@ -108,6 +109,7 @@ function post.parse_metadata(path: string, content: string): Post?
         frontmatter = frontmatter,
         body = body,
         html = nil,
+        path = path,
       }
     end
   end
