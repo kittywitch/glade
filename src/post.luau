@@ -26,6 +26,7 @@ function post.parse_metadata(path: string, content: string): Post?
     toml = regex.new("^[[:space:]]*\\+\\+\\+(\\r?\\n(?s).*?(?-s))\\+\\+\\+[[:space:]]*($|(?:\\r?\\n((?s).*(?-s))$))");
     yaml = regex.new("^[[:space:]]*---(\\r?\\n(?s).*?(?-s))---[[:space:]]*($|(?:\\r?\\n((?s).*(?-s))$))");
   }
+  -- TODO: handle page without frontmatter
   local post: Post? = nil
   for frontmatter_type: serde.EncodeDecodeFormat, frontmatter_pattern in frontmatter_patterns do
     if frontmatter_pattern:isMatch(content) then

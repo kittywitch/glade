@@ -228,18 +228,13 @@ function get_template_fm_for_post_dep(
   return nil, nil, nil, nil
 end
 
---[[
 
-    mapper.add_dependency_file(dependency_root, parsed_post, "templated_post")
-    local relevant_template_path = find_template_for_post(post_obj, post_type)
-    if relevant_template_path ~= nil then
-      relevant_template_path = "templates/" .. relevant_template_path
-      local metadata_obj = fsx.search_filetree(rootft, relevant_template_path)
-      if metadata_obj ~= nil then
-        mapper.handle_template_relationship(ft, rootft, parsed_post, metadata_obj)
-      end
-    end
+--[[
+-- TODO: remove all complexity that arises as a result of Zola compatibility where it doesn't concern frontmatter
+--
+-- like, template configuration doesn't need to be done via _index.md, Zola didn't have a scripting language: we do
 ]]--
+
 function post_dependency(filetype: string, format: string): (string, DependencyManager.GraphFormerRule)
   local function handle_template_dependency(
     depmgr: DependencyManager.DependencyManager,
