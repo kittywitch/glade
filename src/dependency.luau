@@ -175,9 +175,8 @@ function DependencyManager.visualize_graph(
   local dot_graph_prefix = "digraph {\n"
   local dot_graph_suffix = "\n}"
   local input = dot_graph_prefix
-  input = input .. "{\n"
+  input = input .. "rankdir=LR\n"
   input = input .. "node [shape=box]\n"
-  input = input .. "}\n"
   for i, edge in self.dag.edges do
     print(edge)
     local entry_from = self.map[edge.from]
