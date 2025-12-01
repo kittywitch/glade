@@ -213,13 +213,19 @@ function DependencyManager.visualize_graph(
     print(edge)
     local entry_from = self.map[edge.from]
     local entry_to = self.map[edge.to]
-    if entry_to.file ~= nil and entry_to.file.path ~= nil then
+    if edge.to == 1 then
+      input = input .. " root "
+
+    elseif entry_to.file ~= nil and entry_to.file.path ~= nil then
       input = input .. "\"" .. entry_to.file.path .. "\""
     else
       input = input .. " pathless "
     end
     input = input .. "->"
-    if entry_from.file ~= nil and entry_from.file.path ~= nil then
+    if edge.from == 1 then
+      input = input .. " root "
+
+    elseif entry_from.file ~= nil and entry_from.file.path ~= nil then
       input = input .. " \"" .. entry_from.file.path .. "\""
     else
       input = input .. " pathless "
