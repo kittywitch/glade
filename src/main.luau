@@ -168,7 +168,6 @@ function get_template_from_post_obj(
     if pfm ~= nil and pfm.page_template ~= nil then
       result = pfm.page_template
     else
-      print("Default usage for post " .. post_obj.path)
       result = default_template
     end
   end
@@ -210,8 +209,6 @@ function get_template_filename_for_post_dep(
     post_dep: DependencyManager.DependencyOrIdx
   ): (DependencyManager.Dependency?, post.Post?, string?, string?)
   local output = depmgr:find_output(post_dep, "post")
-  print(output)
-  print(depmgr.store)
   if output ~= nil then
     return get_template_from_post(depmgr, output)
   end
@@ -315,6 +312,7 @@ function main.call()
   depmgr:build_graph()
   depmgr:visualize_graph()
   depmgr:build_all()
+  print(depmgr.map)
   --mapper.build_dependency_graph(filetree, filetree)
 
   --local _posts = post.handle_all()

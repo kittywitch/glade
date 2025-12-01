@@ -105,14 +105,41 @@ function DependencyManager.build_graph(self: DependencyManager)
   recursive_graph_builder(self.rft, self.rft)
 end
 
-function DependencyManager.add_dependency(self: DependencyManager, dep: Dependency): number
-  local idx = dag.append_vertex(self.dag)
-  table.insert(self.map, idx, dep)
-  return idx
+function DependencyManager.add_dependency(self: DependencyManager, dep: Dependency): number?
+  if self:find_dependency(dep) ~= nil then
+    return nil
+  else
+    local idx = dag.append_vertex(self.dag)
+    table.insert(self.map, idx, dep)
+    return idx
+  end
+end
+
+-- TODO: not checking length of dep1 and dep2, incomplete
+function check_equal(dep1: Dependency, dep2: Dependency)
+  if dep1 == dep2 then
+    return true
+  end
+  local equal = true
+  for k, v in dep1 do
+    if dep2[k] ~= v then
+      equal = false
+    end
+  end
+  if equal then
+    return equal
+  end
+  return false
 end
 
 function DependencyManager.find_dependency(self: DependencyManager, dep: Dependency): number?
   local idx = table.find(self.map, dep)
+  for i, j in self.map do
+    if check_equal(dep, j) then
+      idx = i
+      break
+    end
+  end
   return idx
 end
 
@@ -121,7 +148,12 @@ function DependencyManager.find_or_add_dependency(self: DependencyManager, dep: 
   if idx ~= nil then
     return idx
   else
-    return DependencyManager.add_dependency(self, dep)
+    local ret = DependencyManager.add_dependency(self, dep)
+    if ret ~= nil then
+      return ret
+    else
+      return 1
+    end
   end
 end
 

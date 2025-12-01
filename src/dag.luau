@@ -41,8 +41,20 @@ function dag.create_edge(from: number, to: number, kind: string)
 end
 
 function dag.form_edge(obj: DAG, from: number, to: number, kind: string)
-  local edge = dag.create_edge(from, to, kind)
-  dag.append_edge(obj, edge)
+  local found = false
+  for i, edge in obj["edges"] do
+    print("testing")
+    if edge.from == from and edge.to == to and edge.kind == kind then
+      found = true
+      break
+    end
+  end
+  if not found then
+    local edge = dag.create_edge(from, to, kind)
+    dag.append_edge(obj, edge)
+  else
+    print("Dupes dupes dupes dupes")
+  end
 end
 
 return dag
