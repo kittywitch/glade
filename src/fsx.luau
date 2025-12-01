@@ -54,13 +54,12 @@ export type FiletreeOutput = {
 } & FileCommon
 
 function fsx.search_filetree(ft: FiletreeOutput, path: string): FileMetadata?
-  print("Called on " .. path)
+  print("fsx.search_filetree: Called on " .. path)
   local check_path = string.gsub(path, "\.\/", "", 1)
   local split_path = string.split(check_path, "/")
   local filename = table.remove(split_path, #split_path)
   local context = ft
   for i, subpath in split_path do
-    print("subpath " .. subpath)
     context = context.dirs[subpath]
   end
   if filename ~= nil and context.files[filename] ~= nil then

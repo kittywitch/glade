@@ -15,6 +15,7 @@ function load_site_config()
   print("Loading site config")
   local config = serde.decode("toml", fs.readFile("./config.toml"))
   print("Site config loaded")
+  print(config)
   return config
 end
 
@@ -53,7 +54,7 @@ function build_filter(): (string) -> boolean
     return filetree_filter
 end
 
-function post_remapper(config: tablex.TableWildcard, path: string, filetype: string)
+function post_remapper(config: tablex.TableWildcard, path: string, filetype: string): string
   local result = config.result_dir .. "/"
   local moved_dir = string.gsub(path, "content/", result)
   local refiletyped = string.gsub(moved_dir, filetype, "html")
@@ -69,10 +70,59 @@ end
 ]]--
 
 
-function build_root()
+function build_root(
+    depmgr: DependencyManager.DependencyManager,
+    parents: { [string]: DependencyManager.DependencyOrIdx },
+    me: DependencyManager.DependencyOrIdx,
+    sft: fsx.FiletreeOutput,
+    f: fsx.FileMetadata
+  ): ()
+  for i, parent in parents do
+    local html_output = depmgr:find_output(parent, "html")
+    if html_output ~= nil then
+      local new_path = post_remapper(depmgr.config, f.path, f.filetype)
+      fsx.produce_file(new_path, html_output)
+    end
+  end
 end
 
-function build_post()
+function build_template(
+    depmgr: DependencyManager.DependencyManager,
+    parents: { [string]: DependencyManager.DependencyOrIdx },
+    me: DependencyManager.DependencyOrIdx,
+    sft: fsx.FiletreeOutput,
+    f: fsx.FileMetadata
+  ): ()
+  local template_parsed = template.parse(f.path)
+  depmgr:add_output(me, "template", template_parsed)
+end
+
+function build_post(
+    depmgr: DependencyManager.DependencyManager,
+    parents: { [string]: DependencyManager.DependencyOrIdx },
+    me: DependencyManager.DependencyOrIdx,
+    sft: fsx.FiletreeOutput,
+    f: fsx.FileMetadata
+  ): ()
+
+  local tpl = nil
+  for i, parent in parents do
+    tpl = depmgr:find_output(parent, "template")
+    if tpl ~= nil then
+      break
+    end
+  end
+  if tpl ~= nil then
+    local post = depmgr:find_output(me, "post")
+    if post ~= nil then
+      local context = {
+        post = post,
+        config = depmgr.config,
+      }
+      local templated = tpl(context)
+      depmgr:add_output(me, "html", templated)
+    end
+  end
 end
 
 function parse_post(
@@ -103,29 +153,48 @@ function create_post_dep(
   return post_dep, post_obj, assoc_kind
 end
 
-function get_template_from_direct_post(
-    post_obj: post.Post
+function get_template_from_post_obj(
+    post_obj: post.Post,
+    default_template: string,
+    direct: boolean
   ): string?
   local pfm = post_obj.frontmatter
-  if pfm ~= nil and pfm.template ~= nil then
-    return "./templates/" .. pfm.template
+  local result = nil
+  if direct then
+    if pfm ~= nil and pfm.template ~= nil then
+      result = pfm.template
+    end
+  else
+    if pfm ~= nil and pfm.page_template ~= nil then
+      result = pfm.page_template
+    else
+      print("Default usage for post " .. post_obj.path)
+      result = default_template
+    end
   end
-  return nil
+  if result ~= nil then
+    return "./templates/" .. result
+  else
+    return nil
+  end
 end
 
 function get_template_from_post(
     depmgr: DependencyManager.DependencyManager,
     post_obj: post.Post
   ): (DependencyManager.Dependency?, post.Post?, string?, string?)
-  local direct_template = get_template_from_direct_post(post_obj)
-  if direct_template == nil then
+  local default_template = depmgr.config.default_template
+  local direct_template = get_template_from_post_obj(post_obj, default_template, true)
+  if direct_template ~= nil then
+    return nil, nil, direct_template, nil
+  else
     local pcl = fsx.find_closest("_index.md", post_obj.path)
     if pcl ~= nil then
       local pclfm = fsx.search_filetree(depmgr.rft, pcl)
       if pclfm ~= nil then
         local d, pco, k = create_post_dep(depmgr, pclfm, "markdown", true)
         if pco ~= nil then
-          local fn = get_template_from_direct_post(pco)
+          local fn = get_template_from_post_obj(pco, default_template, false)
           if fn ~= nil then
             return d, pco, fn, k
           end
@@ -133,22 +202,18 @@ function get_template_from_post(
       end
     end
   end
-  if depmgr.config.default_template ~= nil then
-    return nil, nil, depmgr.config.default_template, nil
-  end
-  return nil, nil, nil, nil
+  return nil, nil, "./templates/" .. default_template, nil
 end
 
 function get_template_filename_for_post_dep(
     depmgr: DependencyManager.DependencyManager,
     post_dep: DependencyManager.DependencyOrIdx
   ): (DependencyManager.Dependency?, post.Post?, string?, string?)
-  local output = depmgr:find_output(post_dep)
+  local output = depmgr:find_output(post_dep, "post")
+  print(output)
+  print(depmgr.store)
   if output ~= nil then
-    local post_obj = output["post"]
-    if post_obj ~= nil then
-      return get_template_from_post(depmgr, post_obj)
-    end
+    return get_template_from_post(depmgr, output)
   end
   return nil, nil, nil, nil
 end
@@ -159,16 +224,11 @@ function get_template_fm_for_post_dep(
   ): (DependencyManager.Dependency?, post.Post?, fsx.FileMetadata?, string?)
   local d, p, template_filename, k = get_template_filename_for_post_dep(depmgr, post_dep)
   if template_filename ~= nil then
-    print(template_filename)
+    print("Template filename " .. template_filename)
     local tplfm = fsx.search_filetree(depmgr.rft, template_filename)
-    print("TPLFM!")
-    print(tplfm)
     return d, p, tplfm, k
   end
   return nil, nil, nil, nil
-end
-
-function build_template()
 end
 
 --[[
@@ -211,7 +271,7 @@ function post_dependency(filetype: string, format: string): (string, DependencyM
     sft: fsx.FiletreeOutput,
     f: fsx.FileMetadata
   ): ()
-    if f.filetype == filetype then
+    if f.filetype == filetype and f.name ~= "_index.md" then
       local post_dep, post_obj = create_post_dep(depmgr, f, format, false)
       depmgr:add_association(parent, post_dep, "post")
       depmgr:add_output(post_dep, "post", post_obj)
@@ -220,13 +280,14 @@ function post_dependency(filetype: string, format: string): (string, DependencyM
         tpl_post_obj,
         assoc_kind = handle_template_dependency(depmgr, post_dep, sft, f)
 
+      local intermediate = post_dep
+      if post_config_dependency ~= nil and assoc_kind ~= nil then
+        depmgr:add_association(intermediate, post_config_dependency, assoc_kind)
+        intermediate = post_config_dependency :: DependencyManager.Dependency
+        depmgr:add_output(post_config_dependency, "post", tpl_post_obj)
+      end
       if template_dependency ~= nil then
-        depmgr:add_association(post_dep, template_dependency, "template")
-        depmgr:add_output(post_dep, "post", post_obj)
-        if post_config_dependency ~= nil and assoc_kind ~= nil then
-          depmgr:add_association(template_dependency, post_config_dependency, assoc_kind)
-          depmgr:add_output(post_config_dependency, "post", tpl_post_obj)
-        end
+        depmgr:add_association(intermediate, template_dependency, "template")
       end
     end
   end
@@ -253,6 +314,7 @@ function main.call()
   depmgr:add_root(build_root)
   depmgr:build_graph()
   depmgr:visualize_graph()
+  depmgr:build_all()
   --mapper.build_dependency_graph(filetree, filetree)
 
   --local _posts = post.handle_all()

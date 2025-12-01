@@ -45,19 +45,4 @@ function dag.form_edge(obj: DAG, from: number, to: number, kind: string)
   dag.append_edge(obj, edge)
 end
 
-function dag.get_children_of_node(obj: DAG, vertex: number)
-  local children = {}
-  for i, edge: any in obj.edges do
-    if edge["to"] ~= nil and edge["to"] == vertex then
-      table.insert(children, edge["from"])
-    end
-  end
-end
-
-function dag.podfs(obj: DAG, consumer: (...any) -> any)
-  for i, edge in dag.get_children_of_node(obj, 1)  do
-
-  end
-end
-
 return dag

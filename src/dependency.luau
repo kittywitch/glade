@@ -134,12 +134,29 @@ function DependencyManager.add_output(self: DependencyManager, dep: DependencyOr
   end
   if idx ~= nil then
     print("Adding output " .. name .. " for dep index " .. idx)
-    self.store[idx] = { [name] = output; }
+    if self.store[idx] == nil then
+      self.store[idx] = {}
+    end
+    self.store[idx][name] = output
   end
   return idx
 end
 
-function DependencyManager.find_output(self: DependencyManager, dep: DependencyOrIdx): any?
+function DependencyManager.find_output(self: DependencyManager, dep: DependencyOrIdx, name: string): any?
+  local idx: number? = nil
+  if typeof(dep) == "table" then
+    idx = self:find_dependency(dep)
+  else
+    idx = dep :: number
+  end
+  if idx ~= nil then
+    return self.store[idx][name]
+  else
+    return nil
+  end
+end
+
+function DependencyManager.get_outputs(self: DependencyManager, dep: DependencyOrIdx): any?
   local idx: number? = nil
   if typeof(dep) == "table" then
     idx = self:find_dependency(dep)
@@ -148,9 +165,8 @@ function DependencyManager.find_output(self: DependencyManager, dep: DependencyO
   end
   if idx ~= nil then
     return self.store[idx]
-  else
-    return nil
   end
+  return nil
 end
 
 function DependencyManager.visualize_graph(
@@ -166,14 +182,14 @@ function DependencyManager.visualize_graph(
     print(edge)
     local entry_from = self.map[edge.from]
     local entry_to = self.map[edge.to]
-    if entry_from.file ~= nil and entry_from.file.path ~= nil then
-      input = input .. " \"" .. entry_from.file.path .. "\""
+    if entry_to.file ~= nil and entry_to.file.path ~= nil then
+      input = input .. "\"" .. entry_to.file.path .. "\""
     else
       input = input .. " pathless "
     end
     input = input .. "->"
-    if entry_to.file ~= nil and entry_to.file.path ~= nil then
-      input = input .. "\"" .. entry_to.file.path .. "\""
+    if entry_from.file ~= nil and entry_from.file.path ~= nil then
+      input = input .. " \"" .. entry_from.file.path .. "\""
     else
       input = input .. " pathless "
     end
@@ -182,7 +198,7 @@ function DependencyManager.visualize_graph(
   input = input..dot_graph_suffix
   local graphviz_args = {
     "-Tsvg",
-    "-Glabel='SSG output'",
+    "-Glabel=SSG output",
   }
   local exec_opts: process.ExecOptions = {
     cwd = process.env["REPO_ROOT"],
@@ -223,6 +239,21 @@ function DependencyManager.add_association(
     print("Associating " .. from_idx .. " to " .. to_idx .. " as kind " .. kind)
     dag.form_edge(self.dag, from_idx, to_idx, kind)
   end
+end
+
+function DependencyManager.build_all(self: DependencyManager)
+  local marked = {}
+  local can_find_next = true
+  local edge_focus = self.dag.edges[1]
+  local vertex_focus = edge_focus.to
+  for i, edge in self.dag.edges do
+    if edge.from == vertex_focus then
+      edge_focus = edge
+      vertex_focus = edge.to
+    end
+  end
+  print(edge_focus)
+  print(vertex_focus)
 end
 
 return DependencyManager
