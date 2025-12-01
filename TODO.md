@@ -6,6 +6,11 @@
 - [ ] Produce a functionx.FunctionWildcard equivalent type
 - [ ] Remove lua-markdown and lua-htmlparser now they are no longer needed
 
+## Libraries / tools to adopt
+
+- [ ] https://rusty-luau.devcomp.xyz/
+- [ ] https://github.com/pesde-pkg/pesde
+
 ## SSG Core
 
 - ~~[x] Turn markdown posts into HTML~~
