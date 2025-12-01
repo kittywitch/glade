@@ -216,7 +216,6 @@ function DependencyManager.visualize_graph(
     local entry_to = self.map[edge.to]
     if edge.to == 1 then
       input = input .. " root "
-
     elseif entry_to.file ~= nil and entry_to.file.path ~= nil then
       input = input .. "\"" .. entry_to.file.path .. "\""
     else
@@ -225,7 +224,6 @@ function DependencyManager.visualize_graph(
     input = input .. "->"
     if edge.from == 1 then
       input = input .. " root "
-
     elseif entry_from.file ~= nil and entry_from.file.path ~= nil then
       input = input .. " \"" .. entry_from.file.path .. "\""
     else
