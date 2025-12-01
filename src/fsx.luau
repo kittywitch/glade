@@ -54,18 +54,19 @@ export type FiletreeOutput = {
 } & FileCommon
 
 function fsx.search_filetree(ft: FiletreeOutput, path: string): FileMetadata?
-  local split_path = string.split(path, "/")
+  print("Called on " .. path)
+  local check_path = string.gsub(path, "\.\/", "", 1)
+  local split_path = string.split(check_path, "/")
   local filename = table.remove(split_path, #split_path)
-  local context = nil
+  local context = ft
   for i, subpath in split_path do
-    print(subpath)
-    context = ft.dirs[subpath]
+    print("subpath " .. subpath)
+    context = context.dirs[subpath]
   end
-  if filename ~= nil then
-    return context.files[filename]
-  else
-    return nil
+  if filename ~= nil and context.files[filename] ~= nil then
+      return context.files[filename]
   end
+  return nil
 end
 
 function fsx.build_filetree(directory: string, config: FiletreeConfig): FiletreeOutput
@@ -124,6 +125,7 @@ function fsx.basedir(path: string): string
 end
 
 function fsx.produce_file(path: string, content: string): ()
+  print("Asked to produce file at " .. path)
   local base_dir = fsx.basedir(path)
   if not fs.isDir(base_dir) then
     fs.writeDir(base_dir)
@@ -145,9 +147,8 @@ function fsx.find_closest(needle: string, haystack: string): string?
     return location
   else
     print("Recursing for " .. needle .. " in " .. basedir)
-    fsx.find_closest(needle, basedir)
+    return fsx.find_closest(needle, basedir)
   end
-  return nil
 end
 
 return fsx

@@ -2,10 +2,16 @@ local tablex = {}
 
 export type TableWildcard = { [any]: any }
 
-function tablex.combine(t1: TableWildcard, t2: TableWildcard): ()
+function tablex.combine<T>(t1: {T}, t2: {T}): ()
   local len = #t1
   for i=1, #t2 do
     t1[len+i] = t2[i]
+  end
+end
+
+function tablex.combine_kv<Tk, Tv>(t1: {[Tk]: Tv}, t2: {[Tk]: Tv}): ()
+  for k, v in t2 do
+    t1[k] = v
   end
 end
 

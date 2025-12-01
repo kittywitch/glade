@@ -81,6 +81,7 @@
             grass-sass
             pandoc
             stylua
+            graphviz
             luau-lsp
             lune
           ];
