@@ -209,6 +209,7 @@ function DependencyManager.visualize_graph(
   local input = dot_graph_prefix
   input = input .. "rankdir=LR\n"
   input = input .. "node [shape=box]\n"
+  input = input .. "root [shape=diamond]\n"
   for i, edge in self.dag.edges do
     print(edge)
     local entry_from = self.map[edge.from]
