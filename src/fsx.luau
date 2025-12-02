@@ -39,7 +39,7 @@ export type FiletreeConfig = {
 }
 
 export type FileCommon = {
-  path: string,
+  path: Option<string>,
   metadata: fs.Metadata,
 }
 
@@ -75,7 +75,7 @@ end
 
 function fsx.build_filetree(directory: string, config: FiletreeConfig): FiletreeOutput
   local tree: FiletreeOutput = {
-    path = directory,
+    path = Some(directory),
     metadata = fs.metadata(directory),
     files = {},
     dirs = {},
@@ -105,7 +105,7 @@ function fsx.build_filetree(directory: string, config: FiletreeConfig): Filetree
           filetype = Some(split_filename[2])
         end
         local metadata: FileMetadata = {
-          path = path,
+          path = Some(path),
           name = entry,
           basename = basename,
           filetype = filetype,

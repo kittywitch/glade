@@ -7,8 +7,12 @@ local template = require("@project/template")
 local fsx = require("@project/fsx")
 local tablex = require("@project/tablex")
 local dag = require("@project/dag")
-local Option = require("@rustyluau/option")
 local DependencyManager = require("@project/dependency")
+
+local option = require("@rustyluau/option")
+
+type Option<T> = option.Option<T>
+local Option, Some, None = option.Option, option.Some, option.None
 
 local main = {}
 
@@ -80,9 +84,9 @@ function build_root(
   ): ()
   for i, parent in parents do
     local html_output = depmgr:find_output(parent, "html")
-    if html_output then
-      local new_path = post_remapper(depmgr.config, f.path, f.filetype)
-      fsx.produce_file(new_path, html_output)
+    if html_output.isSome() then
+      local new_path = post_remapper(depmgr.config, f.path:unwrap(), f.filetype:unwrap())
+      fsx.produce_file(new_path, html_output:unwrap())
     end
   end
 end
@@ -94,7 +98,7 @@ function build_template(
     sft: fsx.FiletreeOutput,
     f: fsx.FileMetadata
   ): ()
-  local template_parsed = template.parse(f.path)
+  local template_parsed = template.parse(f.path:unwrap())
   depmgr:add_output(me, "template", template_parsed)
 end
 
@@ -109,18 +113,19 @@ function build_post(
   local tpl = None()
   for i, parent in parents do
     tpl = depmgr:find_output(parent, "template")
-    if tpl ~= nil then
+    if tpl:isSome() then
       break
     end
   end
-  if tpl ~= nil then
+  if tpl:isSome() then
     local post = depmgr:find_output(me, "post")
     if post ~= nil then
       local context = {
         post = post,
         config = depmgr.config,
       }
-      local templated = tpl(context)
+      local tplo: (...any) -> ...any = tpl:unwrap()
+      local templated = tplo(context)
       depmgr:add_output(me, "html", templated)
     end
   end
@@ -129,7 +134,7 @@ end
 function parse_post(
     path: string,
     format: string
-  ): post.Post?
+  ): Option<post.Post>
   local post_obj = post.parse(format, path)
   return post_obj
 end
@@ -141,11 +146,11 @@ function create_post_dependency(
   ): (DependencyManager.DependencyOrIdx?)
   local post_dep: DependencyManager.Dependency = {
     build = build_post,
-    file = fm,
+    file = Some(fm),
   }
   local idx = depmgr:add_dependency(post_dep)
   if idx ~= nil then
-    local post_obj = parse_post(fm.path, format)
+    local post_obj = parse_post(fm.path:unwrap(), format)
     if post_obj ~= nil then
       depmgr:add_output(post_dep, "post", post_obj)
       return post_dep, post_obj
@@ -178,32 +183,29 @@ function get_template_file_from_post_dependency(
     depmgr: DependencyManager.DependencyManager,
     post_dep: DependencyManager.DependencyOrIdx,
     default_template: string?
-): fsx.FileMetadata?
+): Option<fsx.FileMetadata>
   local post_obj = depmgr:find_output(post_dep, "post")
-  if post_obj ~= nil then
-    local template_filename = get_template_from_post(post_obj, default_template)
+  if post_obj:isSome() then
+    local template_filename = get_template_from_post(post_obj:unwrap(), default_template)
     if template_filename ~= nil then
       return depmgr:get_by_path(template_filename)
     end
   end
-  return nil
+  return None()
 end
 
 function create_template_dependency(
     depmgr: DependencyManager.DependencyManager,
     post_dep: DependencyManager.DependencyOrIdx,
     default_template: string?
-): DependencyManager.DependencyOrIdx?
+): DependencyManager.DependencyOrIdx
   local fm = get_template_file_from_post_dependency(depmgr, post_dep, default_template)
   local tpl_dep: DependencyManager.Dependency = {
     build = build_template,
     file = fm,
   }
   local idx = depmgr:find_or_add_dependency(tpl_dep)
-  if idx ~= nil then
-    return tpl_dep
-  end
-  return nil
+  return tpl_dep
 end
 
 --[[
@@ -212,7 +214,7 @@ end
 -- like, template configuration doesn't need to be done via _index.md, Zola didn't have a scripting language: we do
 ]]--
 
-function post_dependency(filetype: string, format: string): (string, DependencyManager.GraphFormerRule)
+function handle_post_dependency(filetype: string, format: string): (string, DependencyManager.GraphFormerRule)
   local function graph_former_rule(
     depmgr: DependencyManager.DependencyManager,
     parent: DependencyManager.DependencyOrIdx,
@@ -251,7 +253,7 @@ function main.call()
 
   local depmgr = DependencyManager.new(config, rft)
 
-  local md_name, md_func = post_dependency("md", "markdown_mmd")
+  local md_name, md_func = handle_post_dependency("md", "markdown_mmd")
   depmgr:add_gfr(md_name, md_func)
   depmgr:add_root(build_root)
   depmgr:build_graph()

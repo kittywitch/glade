@@ -12,8 +12,8 @@ local Option, Some, None = option.Option, option.Some, option.None
 
 export type Dependency = {
   -- all dependencies are buildable
-  build: ((...any) -> ...any)?,
-  file: fsx.FileMetadata?,
+  build: ((...any) -> ...any),
+  file: Option<fsx.FileMetadata>,
 }
 
 export type DependencyOrIdx = Dependency | number
@@ -74,6 +74,7 @@ end
 function DependencyManager.add_root(self: DependencyManager, handler: (...any) -> ...any)
   local root_dependency: Dependency = {
     build = handler,
+    file = None(),
   }
   dag.append_vertex(self.dag)
   table.insert(self.map, root_dependency)
@@ -110,13 +111,13 @@ function DependencyManager.build_graph(self: DependencyManager)
   recursive_graph_builder(self.rft, self.rft)
 end
 
-function DependencyManager.add_dependency(self: DependencyManager, dep: Dependency): option.Option<number>
-  if self:find_dependency(dep):isSome() then
-    return None()
-  else
+function DependencyManager.add_dependency(self: DependencyManager, dep: Dependency): Option<number>
+  if self:find_dependency(dep):isNone() then
     local idx = dag.append_vertex(self.dag)
     table.insert(self.map, idx, dep)
     return Some(idx)
+  else
+    return None()
   end
 end
 
@@ -208,20 +209,28 @@ function DependencyManager.visualize_graph(
   input = input .. "root [shape=diamond]\n"
   for i, edge in self.dag.edges do
     print(edge)
-    local entry_from = self.map[edge.from]
-    local entry_to = self.map[edge.to]
+    local entry_from: Dependency = self.map[edge.from]
+    local entry_to: Dependency = self.map[edge.to]
     if edge.to == 1 then
       input = input .. " root "
-    elseif entry_to.file ~= nil and entry_to.file.path ~= nil then
-      input = input .. "\"" .. entry_to.file.path .. "\""
+    elseif entry_to.file:isSomeAnd(function(f)
+      print(f)
+      print(f.path)
+      return f.path:isSome()
+    end) then
+      local to: string = entry_to.file:unwrap().path:unwrap()
+      input = input .. " \"" .. to  .. "\""
     else
       input = input .. " pathless "
     end
     input = input .. "->"
     if edge.from == 1 then
       input = input .. " root "
-    elseif entry_from.file ~= nil and entry_from.file.path ~= nil then
-      input = input .. " \"" .. entry_from.file.path .. "\""
+    elseif entry_from.file:isSomeAnd(function(f)
+      return f.path:isSome()
+    end) then
+      local from: string = entry_from.file:unwrap().path:unwrap()
+      input = input .. " \"" .. from  .. "\""
     else
       input = input .. " pathless "
     end

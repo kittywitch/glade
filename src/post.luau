@@ -7,17 +7,21 @@ local htmlparser = require("@project/third-party/htmlparser");
 local tablex = require("@project/tablex");
 local fsx = require("@project/fsx");
 
+local option = require("@rustyluau/option")
+
+type Option<T> = option.Option<T>
+local Option, Some, None = option.Option, option.Some, option.None
 local post = {}
 
 export type Post = {
   frontmatter: {[any]: any},
-  body: string | nil,
-  html: string | nil,
+  body: Option<string>,
+  html: Option<string>,
   path: string,
 }
 
 
-function post.parse_metadata(path: string, content: string): Post?
+function post.parse_metadata(path: string, content: string): Option<Post>
   --[[
   -- Modified from https://github.com/getzola/zola/blob/a1a62bad0bb29c2c70251bd2b48f942f4c1dbd2b/components/content/src/front_matter/split.rs#L11-L21
   -- Difference is, remainder of file is no longer non-capturing capture group
@@ -27,7 +31,7 @@ function post.parse_metadata(path: string, content: string): Post?
     yaml = regex.new("^[[:space:]]*---(\\r?\\n(?s).*?(?-s))---[[:space:]]*($|(?:\\r?\\n((?s).*(?-s))$))");
   }
   -- TODO: handle page without frontmatter
-  local post: Post? = nil
+  local post: Option<Post> = None()
   for frontmatter_type: serde.EncodeDecodeFormat, frontmatter_pattern in frontmatter_patterns do
     if frontmatter_pattern:isMatch(content) then
       local frontmatter_captures: regex.RegexCaptures? = frontmatter_pattern:captures(content)
@@ -106,18 +110,18 @@ function post.parse_metadata(path: string, content: string): Post?
         local file_metadata = fs.metadata(path)
         frontmatter["date"] = file_metadata.createdAt
       end
-      post = {
+      post = Some({
         frontmatter = frontmatter,
-        body = body,
-        html = nil,
+        body = Some(body),
+        html = None(),
         path = path,
-      }
+      })
     end
   end
   return post
 end
 
-function post.handle_pandoc(input: string, from: string, to: string, toc: boolean, wrap: boolean): string?
+function post.handle_pandoc(input: string, from: string, to: string, toc: boolean, wrap: boolean): Option<string>
   local pandoc_args = {
     "-s",
     "-f",
@@ -139,9 +143,9 @@ function post.handle_pandoc(input: string, from: string, to: string, toc: boolea
   local pandoc_result = process.exec("pandoc", pandoc_args, exec_opts)
   --print(pandoc_result)
   if pandoc_result.ok then
-    return pandoc_result.stdout
+    return Some(pandoc_result.stdout)
   else
-    return nil
+    return None()
   end
 end
 
@@ -194,20 +198,16 @@ function _select_headings(elem): HeadingList
   return headings_tree
 end
 
-function post.parse(format: string, path: string): Post?
+function post.parse(format: string, path: string): Option<Post>
   local file_content = fs.readFile(path)
   local parsed_post = post.parse_metadata(path, file_content)
-  if parsed_post ~= nil then
-    if parsed_post.body ~= nil then
-      parsed_post.html = post.handle_pandoc(parsed_post.body, format, "html", true, false)
-      --parsed_post.html = body(parsed_post.markdown)
+  return parsed_post:map(function(ppost)
+    local body = ppost.body
+    if body:isSome() then
+      ppost.html = post.handle_pandoc(body:unwrap(), format, "html", true, false)
     end
-    local root: any = htmlparser.parse(parsed_post.html)
-    -- TODO: remove
-    --[[local headings = select_headings(root)
-    parsed_post.headings = headings]]--
-  end
-  return parsed_post
+    return ppost
+  end)
 end
 
 function post.handle_all()
