@@ -3,14 +3,15 @@ local regex = require("@lune/regex")
 local serde = require("@lune/serde")
 local dateTime = require("@lune/datetime")
 local process = require("@lune/process")
-local htmlparser = require("@project/third-party/htmlparser");
 local tablex = require("@project/tablex");
 local fsx = require("@project/fsx");
 
 local option = require("@rustyluau/option")
-
+local Option = option.Option
 type Option<T> = option.Option<T>
-local Option, Some, None = option.Option, option.Some, option.None
+local None = option.None
+local Some = option.Some
+
 local post = {}
 
 export type Post = {

@@ -3,9 +3,10 @@ local tablex = require("@project/tablex")
 local regex = require("@lune/regex")
 
 local option = require("@rustyluau/option")
-
+local Option = option.Option
 type Option<T> = option.Option<T>
-local Option, Some, None = option.Option, option.Some, option.None
+local None = option.None
+local Some = option.Some
 
 local fsx = {}
 
@@ -70,6 +71,7 @@ function fsx.get_by_path(ft: FiletreeOutput, path: string): Option<FileMetadata>
   if filename ~= nil and context.files[filename] ~= nil then
       return Some(context.files[filename])
   end
+  print("Couldn't find " .. path)
   return None()
 end
 

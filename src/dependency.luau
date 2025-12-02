@@ -6,9 +6,10 @@ local post = require("@project/post")
 local dag = require("@project/dag")
 
 local option = require("@rustyluau/option")
-
+local Option = option.Option
 type Option<T> = option.Option<T>
-local Option, Some, None = option.Option, option.Some, option.None
+local None = option.None
+local Some = option.Some
 
 export type Dependency = {
   -- all dependencies are buildable
@@ -126,16 +127,24 @@ function check_equal(dep1: Dependency, dep2: Dependency)
   if dep1 == dep2 then
     return true
   end
-  local equal = true
-  for k, v in dep1 do
-    if dep2[k] ~= v then
-      equal = false
+  local file_keys_to_check = {
+    "name",
+    "basename",
+    "metadata",
+  }
+  return dep1.file:zip(dep2.file):map(function(fx)
+    local equal = true
+    local f1 = fx[1]
+    local f2 = fx[2]
+    for i=1,#file_keys_to_check do
+      local k = file_keys_to_check[i]
+      if f1[k] ~= f2[k] then
+        equal = false
+        break
+      end
     end
-  end
-  if equal then
     return equal
-  end
-  return false
+  end):unwrapOr(false)
 end
 
 function DependencyManager.get_dependency(self: DependencyManager, idx: number): Option<Dependency>
@@ -144,8 +153,8 @@ end
 
 function DependencyManager.find_dependency(self: DependencyManager, dep: Dependency): Option<number>
   local idx = table.find(self.map, dep)
-  for i, j in self.map do
-    if check_equal(dep, j) then
+  for i, j: Dependency in self.map do
+    if check_equal(dep, j :: Dependency) then
       idx = i
       break
     end
@@ -187,14 +196,14 @@ end
 function DependencyManager.find_output(self: DependencyManager, dep: DependencyOrIdx, name: string): Option<any>
   local idx: Option<number> = self:get_dep_idx(dep)
   return idx:map(function(idxx: number): Option<any>
-    return Option.new(self.store[idxx][name])
+    return self.store[idxx][name]
   end)
 end
 
 function DependencyManager.get_outputs(self: DependencyManager, dep: DependencyOrIdx): Option<any>
   local idx: Option<number> = self:get_dep_idx(dep)
   return idx:map(function(idxx: number): Option<any>
-    return Option.new(self.store[idxx])
+    return self.store[idxx]
   end)
 end
 

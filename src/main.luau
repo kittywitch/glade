@@ -6,13 +6,13 @@ local post = require("@project/post")
 local template = require("@project/template")
 local fsx = require("@project/fsx")
 local tablex = require("@project/tablex")
-local dag = require("@project/dag")
 local DependencyManager = require("@project/dependency")
 
 local option = require("@rustyluau/option")
-
+local Option = option.Option
 type Option<T> = option.Option<T>
-local Option, Some, None = option.Option, option.Some, option.None
+local None = option.None
+local Some = option.Some
 
 local main = {}
 
@@ -84,7 +84,7 @@ function build_root(
   ): ()
   for i, parent in parents do
     local html_output = depmgr:find_output(parent, "html")
-    if html_output.isSome() then
+    if html_output:isSome() then
       local new_path = post_remapper(depmgr.config, f.path:unwrap(), f.filetype:unwrap())
       fsx.produce_file(new_path, html_output:unwrap())
     end
@@ -143,40 +143,37 @@ function create_post_dependency(
     depmgr: DependencyManager.DependencyManager,
     fm: fsx.FileMetadata,
     format: string
-  ): (DependencyManager.DependencyOrIdx?)
+  ): Option<DependencyManager.DependencyOrIdx>
   local post_dep: DependencyManager.Dependency = {
     build = build_post,
     file = Some(fm),
   }
   local idx = depmgr:add_dependency(post_dep)
-  if idx ~= nil then
+  return idx:andThen(function(_)
     local post_obj = parse_post(fm.path:unwrap(), format)
-    if post_obj ~= nil then
-      depmgr:add_output(post_dep, "post", post_obj)
-      return post_dep, post_obj
-    end
-  end
-  return nil, nil
+    return post_obj:map(function(post_objj)
+      depmgr:add_output(post_dep, "post", post_objj)
+      return post_dep
+    end)
+  end)
 end
 
 function get_template_from_post(
     post_obj: post.Post,
     default_template: string?
-  ): string?
+  ): Option<string>
   local pfm = post_obj.frontmatter
-  local result = nil
+  local result = None()
   if pfm ~= nil and pfm.template ~= nil then
-    result = pfm.template
+    print("nyaaaa")
+    print(pfm.template)
+    result = Some(pfm.template)
   else
-    print("Default!")
-    print(default_template)
-    result = default_template
+    result = Some(default_template)
   end
-  if result ~= nil then
-    return "./templates/" .. result
-  else
-    return nil
-  end
+  return result:map(function(st)
+    return "./templates/" .. st
+  end)
 end
 
 function get_template_file_from_post_dependency(
@@ -186,9 +183,11 @@ function get_template_file_from_post_dependency(
 ): Option<fsx.FileMetadata>
   local post_obj = depmgr:find_output(post_dep, "post")
   if post_obj:isSome() then
-    local template_filename = get_template_from_post(post_obj:unwrap(), default_template)
-    if template_filename ~= nil then
-      return depmgr:get_by_path(template_filename)
+    local po = post_obj:unwrap()
+    print(po)
+    local template_filename = get_template_from_post(po, default_template)
+    if template_filename:isSome() then
+      return depmgr:get_by_path(template_filename:unwrap())
     end
   end
   return None()
@@ -205,7 +204,7 @@ function create_template_dependency(
     file = fm,
   }
   local idx = depmgr:find_or_add_dependency(tpl_dep)
-  return tpl_dep
+  return idx
 end
 
 --[[
@@ -226,13 +225,11 @@ function handle_post_dependency(filetype: string, format: string): (string, Depe
       end)
     then
       local post_dependency = create_post_dependency(depmgr, f, format)
-      if post_dependency ~= nil then
-        depmgr:add_association(1, post_dependency, "post")
-        local template_dependency = create_template_dependency(depmgr, post_dependency, "blog.tpl")
-        if template_dependency ~= nil then
-          depmgr:add_association(post_dependency, template_dependency, "template")
-        end
-      end
+      post_dependency:inspect(function(pd)
+        depmgr:add_association(1, pd, "post")
+        local td = create_template_dependency(depmgr, pd, "post.tpl")
+        depmgr:add_association(pd, td, "template")
+      end)
     end
   end
 
