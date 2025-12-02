@@ -7,6 +7,7 @@ local template = require("@project/template")
 local fsx = require("@project/fsx")
 local tablex = require("@project/tablex")
 local dag = require("@project/dag")
+local Option = require("@rustyluau/option")
 local DependencyManager = require("@project/dependency")
 
 local main = {}
@@ -79,7 +80,7 @@ function build_root(
   ): ()
   for i, parent in parents do
     local html_output = depmgr:find_output(parent, "html")
-    if html_output ~= nil then
+    if html_output then
       local new_path = post_remapper(depmgr.config, f.path, f.filetype)
       fsx.produce_file(new_path, html_output)
     end
@@ -105,7 +106,7 @@ function build_post(
     f: fsx.FileMetadata
   ): ()
 
-  local tpl = nil
+  local tpl = None()
   for i, parent in parents do
     tpl = depmgr:find_output(parent, "template")
     if tpl ~= nil then
@@ -133,43 +134,38 @@ function parse_post(
   return post_obj
 end
 
-function create_post_dep(
+function create_post_dependency(
     depmgr: DependencyManager.DependencyManager,
     fm: fsx.FileMetadata,
-    format: string,
-    template: boolean
-  ): (DependencyManager.Dependency, post.Post?, string?)
+    format: string
+  ): (DependencyManager.DependencyOrIdx?)
   local post_dep: DependencyManager.Dependency = {
     build = build_post,
     file = fm,
   }
-  local assoc_kind = nil
-  if template then
-    assoc_kind = "template_config"
-  else
-    assoc_kind = "post"
+  local idx = depmgr:add_dependency(post_dep)
+  if idx ~= nil then
+    local post_obj = parse_post(fm.path, format)
+    if post_obj ~= nil then
+      depmgr:add_output(post_dep, "post", post_obj)
+      return post_dep, post_obj
+    end
   end
-  local post_obj = parse_post(fm.path, format)
-  return post_dep, post_obj, assoc_kind
+  return nil, nil
 end
 
-function get_template_from_post_obj(
+function get_template_from_post(
     post_obj: post.Post,
-    default_template: string,
-    direct: boolean
+    default_template: string?
   ): string?
   local pfm = post_obj.frontmatter
   local result = nil
-  if direct then
-    if pfm ~= nil and pfm.template ~= nil then
-      result = pfm.template
-    end
+  if pfm ~= nil and pfm.template ~= nil then
+    result = pfm.template
   else
-    if pfm ~= nil and pfm.page_template ~= nil then
-      result = pfm.page_template
-    else
-      result = default_template
-    end
+    print("Default!")
+    print(default_template)
+    result = default_template
   end
   if result ~= nil then
     return "./templates/" .. result
@@ -178,56 +174,37 @@ function get_template_from_post_obj(
   end
 end
 
-function get_template_from_post(
+function get_template_file_from_post_dependency(
     depmgr: DependencyManager.DependencyManager,
-    post_obj: post.Post
-  ): (DependencyManager.Dependency?, post.Post?, string?, string?)
-  local default_template = depmgr.config.default_template
-  local direct_template = get_template_from_post_obj(post_obj, default_template, true)
-  if direct_template ~= nil then
-    return nil, nil, direct_template, nil
-  else
-    local pcl = fsx.find_closest("_index.md", post_obj.path)
-    if pcl ~= nil then
-      local pclfm = fsx.search_filetree(depmgr.rft, pcl)
-      if pclfm ~= nil then
-        local d, pco, k = create_post_dep(depmgr, pclfm, "markdown", true)
-        if pco ~= nil then
-          local fn = get_template_from_post_obj(pco, default_template, false)
-          if fn ~= nil then
-            return d, pco, fn, k
-          end
-        end
-      end
+    post_dep: DependencyManager.DependencyOrIdx,
+    default_template: string?
+): fsx.FileMetadata?
+  local post_obj = depmgr:find_output(post_dep, "post")
+  if post_obj ~= nil then
+    local template_filename = get_template_from_post(post_obj, default_template)
+    if template_filename ~= nil then
+      return depmgr:get_by_path(template_filename)
     end
   end
-  return nil, nil, "./templates/" .. default_template, nil
+  return nil
 end
 
-function get_template_filename_for_post_dep(
+function create_template_dependency(
     depmgr: DependencyManager.DependencyManager,
-    post_dep: DependencyManager.DependencyOrIdx
-  ): (DependencyManager.Dependency?, post.Post?, string?, string?)
-  local output = depmgr:find_output(post_dep, "post")
-  if output ~= nil then
-    return get_template_from_post(depmgr, output)
+    post_dep: DependencyManager.DependencyOrIdx,
+    default_template: string?
+): DependencyManager.DependencyOrIdx?
+  local fm = get_template_file_from_post_dependency(depmgr, post_dep, default_template)
+  local tpl_dep: DependencyManager.Dependency = {
+    build = build_template,
+    file = fm,
+  }
+  local idx = depmgr:find_or_add_dependency(tpl_dep)
+  if idx ~= nil then
+    return tpl_dep
   end
-  return nil, nil, nil, nil
+  return nil
 end
-
-function get_template_fm_for_post_dep(
-    depmgr: DependencyManager.DependencyManager,
-    post_dep: DependencyManager.DependencyOrIdx
-  ): (DependencyManager.Dependency?, post.Post?, fsx.FileMetadata?, string?)
-  local d, p, template_filename, k = get_template_filename_for_post_dep(depmgr, post_dep)
-  if template_filename ~= nil then
-    print("Template filename " .. template_filename)
-    local tplfm = fsx.search_filetree(depmgr.rft, template_filename)
-    return d, p, tplfm, k
-  end
-  return nil, nil, nil, nil
-end
-
 
 --[[
 -- TODO: remove all complexity that arises as a result of Zola compatibility where it doesn't concern frontmatter
@@ -236,50 +213,23 @@ end
 ]]--
 
 function post_dependency(filetype: string, format: string): (string, DependencyManager.GraphFormerRule)
-  local function handle_template_dependency(
-    depmgr: DependencyManager.DependencyManager,
-    parent: DependencyManager.DependencyOrIdx,
-    sft: fsx.FiletreeOutput,
-    f: fsx.FileMetadata
-  ): (
-      DependencyManager.DependencyOrIdx?,
-      DependencyManager.DependencyOrIdx?,
-      post.Post?,
-      string?
-    )
-    local post_config_dep, p, tpl_f, k = get_template_fm_for_post_dep(
-      depmgr,
-      parent
-    )
-    local template_dependency: DependencyManager.Dependency = {
-      build = build_template,
-      file = tpl_f,
-    }
-    return post_config_dep, template_dependency, p, k
-  end
   local function graph_former_rule(
     depmgr: DependencyManager.DependencyManager,
     parent: DependencyManager.DependencyOrIdx,
     sft: fsx.FiletreeOutput,
     f: fsx.FileMetadata
   ): ()
-    if f.filetype == filetype and f.name ~= "_index.md" then
-      local post_dep, post_obj = create_post_dep(depmgr, f, format, false)
-      depmgr:add_association(parent, post_dep, "post")
-      depmgr:add_output(post_dep, "post", post_obj)
-      local post_config_dependency,
-        template_dependency,
-        tpl_post_obj,
-        assoc_kind = handle_template_dependency(depmgr, post_dep, sft, f)
-
-      local intermediate = post_dep
-      if post_config_dependency ~= nil and assoc_kind ~= nil then
-        depmgr:add_association(intermediate, post_config_dependency, assoc_kind)
-        intermediate = post_config_dependency :: DependencyManager.Dependency
-        depmgr:add_output(post_config_dependency, "post", tpl_post_obj)
-      end
-      if template_dependency ~= nil then
-        depmgr:add_association(intermediate, template_dependency, "template")
+    if f.filetype:isSomeAnd(function(f)
+      return f == filetype
+      end)
+    then
+      local post_dependency = create_post_dependency(depmgr, f, format)
+      if post_dependency ~= nil then
+        depmgr:add_association(1, post_dependency, "post")
+        local template_dependency = create_template_dependency(depmgr, post_dependency, "blog.tpl")
+        if template_dependency ~= nil then
+          depmgr:add_association(post_dependency, template_dependency, "template")
+        end
       end
     end
   end
@@ -306,7 +256,7 @@ function main.call()
   depmgr:add_root(build_root)
   depmgr:build_graph()
   depmgr:visualize_graph()
-  depmgr:build_all()
+  --depmgr:build_all()
   print(depmgr.map)
   --mapper.build_dependency_graph(filetree, filetree)
 

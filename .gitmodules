@@ -7,3 +7,6 @@
 [submodule "third-party/lua-htmlparser"]
 	path = src/third-party/lua-htmlparser
 	url = git@github.com:msva/lua-htmlparser.git
+[submodule "src/third-party/rusty-luau"]
+	path = src/third-party/rusty-luau
+	url = git@github.com:CompeyDev/rusty-luau.git

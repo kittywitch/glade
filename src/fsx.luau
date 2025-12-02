@@ -2,6 +2,11 @@ local fs = require("@lune/fs")
 local tablex = require("@project/tablex")
 local regex = require("@lune/regex")
 
+local option = require("@rustyluau/option")
+
+type Option<T> = option.Option<T>
+local Option, Some, None = option.Option, option.Some, option.None
+
 local fsx = {}
 
 function fsx.get_all_of_type(filetype: string, directory: string): { filename: string }
@@ -40,7 +45,7 @@ export type FileCommon = {
 
 export type FileMetadata = {
   name: string,
-  filetype: string,
+  filetype: Option<string>,
   basename: string,
 } & FileCommon
 
@@ -53,8 +58,8 @@ export type FiletreeOutput = {
   },
 } & FileCommon
 
-function fsx.search_filetree(ft: FiletreeOutput, path: string): FileMetadata?
-  print("fsx.search_filetree: Called on " .. path)
+function fsx.get_by_path(ft: FiletreeOutput, path: string): Option<FileMetadata>
+  print("fsx.get_by_path: Called on " .. path)
   local check_path = string.gsub(path, "\.\/", "", 1)
   local split_path = string.split(check_path, "/")
   local filename = table.remove(split_path, #split_path)
@@ -63,9 +68,9 @@ function fsx.search_filetree(ft: FiletreeOutput, path: string): FileMetadata?
     context = context.dirs[subpath]
   end
   if filename ~= nil and context.files[filename] ~= nil then
-      return context.files[filename]
+      return Some(context.files[filename])
   end
-  return nil
+  return None()
 end
 
 function fsx.build_filetree(directory: string, config: FiletreeConfig): FiletreeOutput
@@ -94,10 +99,10 @@ function fsx.build_filetree(directory: string, config: FiletreeConfig): Filetree
       if fs.isFile(path) then
         local split_filename = string.split(entry, ".")
         local basename = entry
-        local filetype = nil
+        local filetype = None()
         if #split_filename > 1 then
           basename = split_filename[1]
-          filetype = split_filename[2]
+          filetype = Some(split_filename[2])
         end
         local metadata: FileMetadata = {
           path = path,
@@ -135,15 +140,15 @@ function fsx.produce_file(path: string, content: string): ()
   fs.writeFile(path, content)
 end
 
-function fsx.find_closest(needle: string, haystack: string): string?
+function fsx.find_closest(needle: string, haystack: string): Option<string>
   local basedir = fsx.basedir(haystack)
   if basedir == "./" or basedir == "." then
-    return nil
+    return None()
   end
   local location = basedir .. "/" .. needle
   if fs.isFile(location) then
     print("Needle found at " .. location .. "!")
-    return location
+    return Some(location)
   else
     print("Recursing for " .. needle .. " in " .. basedir)
     return fsx.find_closest(needle, basedir)

@@ -5,6 +5,11 @@ local tablex = require("@project/tablex")
 local post = require("@project/post")
 local dag = require("@project/dag")
 
+local option = require("@rustyluau/option")
+
+type Option<T> = option.Option<T>
+local Option, Some, None = option.Option, option.Some, option.None
+
 export type Dependency = {
   -- all dependencies are buildable
   build: ((...any) -> ...any)?,
@@ -105,13 +110,13 @@ function DependencyManager.build_graph(self: DependencyManager)
   recursive_graph_builder(self.rft, self.rft)
 end
 
-function DependencyManager.add_dependency(self: DependencyManager, dep: Dependency): number?
-  if self:find_dependency(dep) ~= nil then
-    return nil
+function DependencyManager.add_dependency(self: DependencyManager, dep: Dependency): option.Option<number>
+  if self:find_dependency(dep):isSome() then
+    return None()
   else
     local idx = dag.append_vertex(self.dag)
     table.insert(self.map, idx, dep)
-    return idx
+    return Some(idx)
   end
 end
 
@@ -132,7 +137,11 @@ function check_equal(dep1: Dependency, dep2: Dependency)
   return false
 end
 
-function DependencyManager.find_dependency(self: DependencyManager, dep: Dependency): number?
+function DependencyManager.get_dependency(self: DependencyManager, idx: number): Option<Dependency>
+  return Option.new(self.map[idx])
+end
+
+function DependencyManager.find_dependency(self: DependencyManager, dep: Dependency): Option<number>
   local idx = table.find(self.map, dep)
   for i, j in self.map do
     if check_equal(dep, j) then
@@ -140,65 +149,52 @@ function DependencyManager.find_dependency(self: DependencyManager, dep: Depende
       break
     end
   end
+  return Option.new(idx)
+end
+
+function DependencyManager.get_dep_idx(self: DependencyManager, val: DependencyOrIdx): Option<number>
+  local idx: Option<number> = nil
+  if typeof(val) == "table" then
+    idx = self:find_dependency(val)
+  else
+    idx = Some(val)
+  end
   return idx
 end
 
 function DependencyManager.find_or_add_dependency(self: DependencyManager, dep: Dependency): number
   local idx = self:find_dependency(dep)
-  if idx ~= nil then
-    return idx
-  else
-    local ret = DependencyManager.add_dependency(self, dep)
-    if ret ~= nil then
-      return ret
-    else
-      return 1
+  local function lazy_add(): Option<number>
+    return self:add_dependency(dep)
+  end
+  -- if you can neither add it, or find it, you fucked up somehow I think
+  return idx:orElse(lazy_add):unwrap()
+end
+
+function DependencyManager.add_output(self: DependencyManager, dep: DependencyOrIdx, name: string, output: any): boolean
+  local idx: Option<number> = self:get_dep_idx(dep)
+  return idx:map(function(idxx: number): boolean
+    print("Adding output " .. name .. " for dep index " .. idxx)
+    if self.store[idxx] == nil then
+      self.store[idxx] = {}
     end
-  end
+    self.store[idxx][name] = output
+    return true
+  end):unwrapOr(false)
 end
 
-function DependencyManager.add_output(self: DependencyManager, dep: DependencyOrIdx, name: string, output: any): number?
-  local idx: number? = nil
-  if typeof(dep) == "table" then
-    idx = self:find_dependency(dep)
-  else
-    idx = dep :: number
-  end
-  if idx ~= nil then
-    print("Adding output " .. name .. " for dep index " .. idx)
-    if self.store[idx] == nil then
-      self.store[idx] = {}
-    end
-    self.store[idx][name] = output
-  end
-  return idx
+function DependencyManager.find_output(self: DependencyManager, dep: DependencyOrIdx, name: string): Option<any>
+  local idx: Option<number> = self:get_dep_idx(dep)
+  return idx:map(function(idxx: number): Option<any>
+    return Option.new(self.store[idxx][name])
+  end)
 end
 
-function DependencyManager.find_output(self: DependencyManager, dep: DependencyOrIdx, name: string): any?
-  local idx: number? = nil
-  if typeof(dep) == "table" then
-    idx = self:find_dependency(dep)
-  else
-    idx = dep :: number
-  end
-  if idx ~= nil then
-    return self.store[idx][name]
-  else
-    return nil
-  end
-end
-
-function DependencyManager.get_outputs(self: DependencyManager, dep: DependencyOrIdx): any?
-  local idx: number? = nil
-  if typeof(dep) == "table" then
-    idx = self:find_dependency(dep)
-  else
-    idx = dep :: number
-  end
-  if idx ~= nil then
-    return self.store[idx]
-  end
-  return nil
+function DependencyManager.get_outputs(self: DependencyManager, dep: DependencyOrIdx): Option<any>
+  local idx: Option<number> = self:get_dep_idx(dep)
+  return idx:map(function(idxx: number): Option<any>
+    return Option.new(self.store[idxx])
+  end)
 end
 
 function DependencyManager.visualize_graph(
@@ -256,25 +252,20 @@ function DependencyManager.add_association(
     from: DependencyOrIdx,
     to: DependencyOrIdx,
     kind: string
-  )
-  local from_idx: number? = nil
-  if typeof(from) == "table" then
-    from_idx = DependencyManager.find_or_add_dependency(self, from :: Dependency)
-  else
-    from_idx = from :: number
-  end
+  ): boolean
+  local from_idx: Option<number> = self:get_dep_idx(from)
+  local to_idx: Option<number> = self:get_dep_idx(to)
+  return from_idx:zip(to_idx):map(function(idx)
+    dag.form_edge(self.dag, idx[1], idx[2], kind)
+    return true
+  end):unwrapOr(false)
+end
 
-  local to_idx: number? = nil
-  if typeof(to) == "table" then
-    to_idx = DependencyManager.find_or_add_dependency(self, to :: Dependency)
-  else
-    to_idx = to :: number
-  end
-
-  if from_idx ~= nil and to_idx ~= nil then
-    print("Associating " .. from_idx .. " to " .. to_idx .. " as kind " .. kind)
-    dag.form_edge(self.dag, from_idx, to_idx, kind)
-  end
+function DependencyManager.get_by_path(
+  self: DependencyManager,
+  path: string
+): Option<fsx.FileMetadata>
+  return fsx.get_by_path(self.rft, path)
 end
 
 function DependencyManager.build_all(self: DependencyManager)
